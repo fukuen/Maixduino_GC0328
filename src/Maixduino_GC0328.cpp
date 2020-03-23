@@ -1120,6 +1120,18 @@ static const uint8_t vga_config[][2] = { //k210
     {0x00, 0x00}
 };
 
+static const uint8_t gc0328_yuv422_regs[][2] = {
+    {0xfe , 0x00},
+	{0x44 , 0x00}, //yuv
+    {0x00, 0x00}
+};
+
+static const uint8_t gc0328_rgb565_regs[][2] = {
+    {0xfe , 0x00},
+	{0x44 , 0x06},
+    {0x00, 0x00}
+};
+
 
 
 Maixduino_GC0328::Maixduino_GC0328( framesize_t frameSize, pixformat_t pixFormat)
@@ -1215,7 +1227,12 @@ bool Maixduino_GC0328::setPixFormat(pixformat_t pixFormat)
 {
 //    if(ov2640_set_pixformat(pixFormat) != 0)
 //        return false;
-    if(_id != 0x9d)
+    if(_id == 0x9d)
+    {
+        if(gc0328_set_pixformat(pixFormat) != 0)
+            return false;
+    }
+    else
     {
         if(ov2640_set_pixformat(pixFormat) != 0)
             return false;
@@ -1272,7 +1289,7 @@ uint8_t* Maixduino_GC0328::snapshot()
     return _dataBuffer;
 }
 
-void Maixduino_GC0328::setRotaion(uint8_t rotation)
+void Maixduino_GC0328::setRotation(uint8_t rotation)
 {
     //FIXME
 }
@@ -1765,6 +1782,50 @@ int Maixduino_GC0328::ov2640_set_framesize(framesize_t framesize)
     msleep(30);
 	dvp_set_image_size(w, h);
     return ret;
+}
+
+int Maixduino_GC0328::gc0328_set_pixformat(pixformat_t pixformat)
+{
+    int i=0;
+    const uint8_t (*regs)[2]=NULL;
+
+    /* read pixel format reg */
+    switch (pixformat) {
+        case PIXFORMAT_RGB565:
+            regs = gc0328_rgb565_regs;
+            break;
+        case PIXFORMAT_YUV422:
+        case PIXFORMAT_GRAYSCALE:
+            regs = gc0328_yuv422_regs;
+            break;
+        default:
+            return -1;
+    }
+
+    /* Write initial regsiters */
+    while (regs[i][0]) {
+        cambus_writeb(_slaveAddr, regs[i][0], regs[i][1]);
+        i++;
+    }
+    switch (pixformat) {
+        case PIXFORMAT_RGB565:
+			dvp_set_image_format(DVP_CFG_RGB_FORMAT);
+            break;
+        case PIXFORMAT_YUV422:
+            dvp_set_image_format(DVP_CFG_YUV_FORMAT);
+            break;
+        case PIXFORMAT_GRAYSCALE:
+			dvp_set_image_format(DVP_CFG_Y_FORMAT);
+            break;
+        case PIXFORMAT_JPEG:
+			dvp_set_image_format(DVP_CFG_RGB_FORMAT);
+            break;
+        default:
+            return -1;
+    }
+    /* delay n ms */
+    msleep(30);
+    return 0;
 }
 
 int Maixduino_GC0328::gc0328_set_framesize(framesize_t framesize)
